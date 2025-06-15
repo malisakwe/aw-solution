@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using Store.API.Profiles;
 using Store.Application;
 using Store.Application.Interfaces;
 using Store.Infrastructure;
 using Store.Infrastructure.Data;
 using Store.Infrastructure.Repositories;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +25,16 @@ builder.Services.AddScoped(provider =>
     var configurator = provider.GetRequiredService<IDbContextConfigurator>();
     configurator.ConfigureDbContext(builder.Services, builder.Configuration);
     return configurator;
+});
+
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Product API", Version = "v1" });
+
+    // Include XML comments
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    c.IncludeXmlComments(xmlPath);
 });
 
 builder.Services.AddControllers();

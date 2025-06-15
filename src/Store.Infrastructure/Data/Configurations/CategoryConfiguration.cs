@@ -10,11 +10,16 @@ namespace Store.Infrastructure.Data.Configurations
         public void Configure(EntityTypeBuilder<Category> builder)
         {
             builder.ToTable("ProductCategory", "Production");
-            builder.HasKey(c => c.CategoryId);
 
+            // Primary Key
+            builder.HasKey(c => c.CategoryId);
+            builder.Property(c => c.CategoryId)
+                .HasColumnName("ProductCategoryID"); // AdventureWorks column name
+
+            // Properties
             builder.Property(c => c.Name)
                 .IsRequired()
-                .HasMaxLength(50);
+                .HasMaxLength(100);
         }
     }
     
