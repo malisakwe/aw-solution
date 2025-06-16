@@ -3,9 +3,11 @@ using Microsoft.OpenApi.Models;
 using Store.API.Profiles;
 using Store.Application;
 using Store.Application.Interfaces;
+using Store.Application.Services;
 using Store.Infrastructure;
 using Store.Infrastructure.Data;
 using Store.Infrastructure.Repositories;
+using Store.Infrastructure.Services;
 using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +20,12 @@ builder.Services.AddAutoMapper(typeof(ProductProfile), typeof(CategoryProfile));
 // Add services to the container.
 builder.Services.AddSingleton<IDbContextConfigurator, DbContextConfigurator>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+builder.Services.AddSingleton<ITokenService, TokenService>();
+// Add BCrypt (if not using the enhanced version)
+builder.Services.AddSingleton<IPasswordHasher>(_ =>
+    new PasswordHasher(BCrypt.Net.BCrypt.GenerateSalt(12)));
 
 // Use dependency injection to resolve the configurator instead of calling BuildServiceProvider
 builder.Services.AddScoped(provider =>
