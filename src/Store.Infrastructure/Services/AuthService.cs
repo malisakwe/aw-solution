@@ -1,31 +1,40 @@
 ﻿using AutoMapper;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
 using Store.Application.Dtos.Auth;
 using Store.Application.Dtos.User;
 using Store.Application.Interfaces;
 using Store.Application.Services;
 using Store.Domain.Entities.Identity;
+using System.Data.Entity.Core.Metadata.Edm;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Authentication;
 using System.Security.Claims;
+using System.Text;
+using System.Web.Providers.Entities;
 
 namespace Store.Infrastructure.Services
 {
 
-    public class AuthService : IAuthService
+    public class AuthService : Application.Interfaces.IAuthService
     {
         private readonly IUserRepository _userRepository;
         private readonly IPasswordHasher _passwordHasher;
         private readonly ITokenService _tokenService;
         private readonly IMapper _mapper;
+        private readonly IConfiguration _configuration; 
 
         public AuthService(
             IUserRepository userRepository,
             IPasswordHasher passwordHasher,
             ITokenService tokenService,
+            IConfiguration configuration,
             IMapper mapper)
         {
             _userRepository = userRepository;
             _passwordHasher = passwordHasher;
             _tokenService = tokenService;
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
             _mapper = mapper;
         }
 
@@ -66,7 +75,7 @@ namespace Store.Infrastructure.Services
 
         public async Task<AuthResult> LoginAsync(LoginRequest request)
         {
-            var user = await _userRepository.GetByEmailAsync(request.Email);
+            var user = await _userRepository.GetByEmailAsync(request.Username);
 
             if (user == null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
                 throw new AuthenticationException("Invalid credentials");
@@ -115,6 +124,57 @@ namespace Store.Infrastructure.Services
                 _mapper.Map<UserDto>(user),
                 newToken,
                 newRefreshToken);
+        }
+
+        public async Task<LoginResponse> LoginAsync(string username, string password)
+        {
+//            var jwtSettings = _con
+            if(username != "testuser" || password != "testpassword")
+            {
+                // throw new AuthenticationException("Invalid credentials");
+                return null; 
+            }
+
+            var jwtSettings = _configuration.GetSection("JwtSettings");
+            var secretKey = jwtSettings["Secret"] ?? 
+                throw new InvalidOperationException("JWT Secret is not configured.");
+            var issuer = jwtSettings["Issuer"] ?? 
+                throw new InvalidOperationException("JWT Issuer is not configured.");   
+            var audience = jwtSettings["Audience"] ??  
+                throw new InvalidOperationException("JWT Audience is not configured.");
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes(secretKey);
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, "userIdFromDB"),
+                new Claim(ClaimTypes.Name, username),
+                new Claim(ClaimTypes.Email, "user@example.com"), 
+                new Claim(ClaimTypes.Role, "User") // Assuming a default role
+            };
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(claims),
+                Expires = DateTime.UtcNow.AddHours(1),
+                SigningCredentials = new SigningCredentials(
+                    new SymmetricSecurityKey(key),
+                    SecurityAlgorithms.HmacSha256Signature),
+                Issuer = issuer,
+                Audience = audience
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            var tokenString = tokenHandler.WriteToken(token);
+
+
+            return new LoginResponse 
+            {
+                Token = tokenString,
+                Expiration = tokenDescriptor.Expires.GetValueOrDefault(),
+                Username = username
+            };
         }
     }
 
